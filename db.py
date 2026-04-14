@@ -125,28 +125,53 @@ db_config = {
     "ConnectionTimeOut": 5
 }
 
+
 def get_conn():
     try:
-        conn = pyodbc.connect(f"Driver={db_config['driver']};Server={db_config['server']};Database={db_config['database']};UID={db_config['uid']};PWD={db_config['pwd']};Encrypt=yes;TrustServerCertificate=yes;")
+        # Добавьте TrustServerCertificate=yes, если используете локальный SQL Server без SSL
+        conn = pyodbc.connect(
+            f"Driver={db_config['driver']};Server={db_config['server']};Database={db_config['database']};UID={db_config['uid']};PWD={db_config['pwd']};Encrypt=yes;TrustServerCertificate=yes;")
         return conn
     except Exception as e:
+        print(f"Ошибка подключения: {e}")
         return None
+
 
 def _execute(query, params=(), fetch=True, commit=False):
     conn = get_conn()
+    if conn is None: return None if fetch else False
     try:
         with conn.cursor() as cursor:
             cursor.execute(query, params)
+            if commit: conn.commit()
+
             if cursor.description:
                 cols = [c[0] for c in cursor.description]
-                res = cursor.fetchone() if fetch else cursor.fetchall()
-                return dict(zip(cols,res)) if fetch else ([dict(zip(cols, r)) for r in res] if res else [])
-            if commit: conn.commit()
-            return None if fetch else True
+                if fetch:
+                    res = cursor.fetchone()
+                    return dict(zip(cols, res)) if res else None
+                else:
+                    res = cursor.fetchall()
+                    return [dict(zip(cols, r)) for r in res] if res else []
+            return True
     except Exception as e:
+        print(f"Ошибка SQL: {e}")
         return None if fetch else False
     finally:
-        conn.commit()
+        conn.close()  # Важно закрывать именно тут
+
+
+def add_user(username, email, password, role_id):
+    # Указываем таблицу [users] (в скобках, так как user - зарезервированное слово)
+    sql = "INSERT INTO [users] (username, email, password, role_id) VALUES (?, ?, ?, ?)"
+    params = (username, email, password, int(role_id))
+    return _execute(sql, params, fetch=False, commit=True)
+
+
+# Функция для получения ID роли по названию
+def get_role_id(role_name):
+    res = _execute("SELECT id FROM roles WHERE role_name = ?", (role_name,), fetch=True)
+    return res['id'] if res else 3  # 3 - по умолчанию Пользователь
 
 def get_user():
     sql = "SELECT u.id, u.username, u.password, u.role_id, u.email, r.role_name FROM users u INNER JOIN roles r ON u.role_id = r.id"
@@ -188,10 +213,10 @@ def update_products_image(product_id, image_url):
 
 def delete_product(product_id): return _execute("DELETE FROM products WHERE id=?", product_id, commit=True)
 
-def add_user(username, email, password, role_id):
-    sql = "INSERT INTO users (username, email, password, role_id) VALUES (?, ?, ?, ?)"
-    params = (username, email, password, int(role_id))
-    return _execute(sql, params, fetch=False, commit=True)
+# def add_user(username, email, password, role_id):
+#     sql = "INSERT INTO users (username, email, password, role_id) VALUES (?, ?, ?, ?)"
+#     params = (username, email, password, int(role_id))
+#     return _execute(sql, params, fetch=False, commit=True)
 
 def add_products(name, price, stock, desc, size, image_url):
     file_name = os.path.basename(image_url)
@@ -200,3 +225,13 @@ def add_products(name, price, stock, desc, size, image_url):
     sql = "INSERT INTO products (name, price, stock_quantity, size, image_url) VALUES (?, ?, ?, ?, ?)"
     params = (name, float(str(price).replace(',','.')), stock, stock, db_path)
     return _execute(sql, params, fetch=False, commit=True)
+
+def login_user(username, password):
+    """Проверяет данные пользователя и возвращает инфо, если всё ок"""
+    sql = """
+        SELECT u.username, r.role_name 
+        FROM [users] u 
+        INNER JOIN roles r ON u.role_id = r.id 
+        WHERE u.username = ? AND u.password = ?
+    """
+    return _execute(sql, (username, password), fetch=True)

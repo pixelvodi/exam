@@ -6,9 +6,8 @@ from PyQt6.QtGui import QPixmap # Добавьте этот импорт в на
 from PyQt6.QtCore import Qt
 
 class MainWindow(QWidget):
-    def __init__(self, db_connected=False):
+    def __init__(self, username, role_name):
         super().__init__()
-        self.db_connected = db_connected
         self.setWindowTitle("Главное окно")
         self.setFixedSize(1200, 1000)
 
