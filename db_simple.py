@@ -103,7 +103,7 @@ def delete_product(pid):
 def add_product(name, price, stock, desc, img, brand_id=None, color_id=None, size=None):
     try:
         _exec(
-            "INSERT INTO products (name, price, stock_quantity, description, image_url, brand_id, color_ir, size) "
+            "INSERT INTO products (name, price, stock_quantity, description, image_url, brand_id, color_id, size) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (name, price, stock, desc, img, brand_id, color_id, size),
             commit=True
@@ -178,3 +178,46 @@ def update_order_status(oid, status):
         return True
     except Exception:
         return False
+
+
+# import pyodbc
+# import socket
+#
+#
+# def get_connection():
+#     # Определяем, где мы находимся, по имени компьютера
+#     computer_name = socket.gethostname().lower()
+#
+#     # Если имя компа домашнее (можешь вписать сюда имя своего ПК, если хочешь)
+#     # Или просто проверяем через try/except, как в прошлый раз
+#
+#     print("Пробуем подключиться в режиме 'Колледж' (LocalDB)...")
+#     try:
+#         return pyodbc.connect(
+#             f"Driver={{ODBC Driver 17 for SQL Server}};"
+#             f"Server=(localdb)\\MSSQLLocalDB;"
+#             f"Database=demoappSQL;"
+#             f"Trusted_Connection=yes;"
+#             f"ConnectionTimeout=2;"  # Быстрый таймаут для проверки
+#         )
+#     except Exception:
+#         print("Режим 'Колледж' не сработал. Подключаемся к домашнему Docker...")
+#         try:
+#             return pyodbc.connect(
+#                 f"Driver={{ODBC Driver 17 for SQL Server}};"
+#                 f"Server=localhost,1433;"  # Твой Docker
+#                 f"Database=demoappSQL;"
+#                 f"UID=sa;"
+#                 f"PWD=YourStrongPassword123!;"
+#                 f"Encrypt=no;"
+#             )
+#         except Exception as e:
+#             print(f"Не удалось подключиться ни к одной БД: {e}")
+#             return None
+#
+#
+# # Проверка
+# conn = get_connection()
+# if conn:
+#     print("Соединение успешно установлено!")
+#     conn.close()

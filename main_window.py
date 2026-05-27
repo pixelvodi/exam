@@ -66,7 +66,7 @@ def _create_product_card(product, role_name, edit_callback=None, delete_callback
         img_label.setText("Фото")
 
     photo_layout.addWidget(img_label)
-    main_layout.addWidget(photo_frame)
+    main_layout.addWidget(photo_layout)
 
     info_layout = QVBoxLayout()
     info_layout.setSpacing(5)
@@ -325,3 +325,4 @@ class MainApp(QWidget):
         order_window = CreateOrderWindow(parent=self, username=self.username)
         self.child_windows.append(order_window)
         order_window.show()
+
