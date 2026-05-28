@@ -1,4 +1,8 @@
 import pyodbc
+import logging
+
+logging.basicConfig(filename='app.log', level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s', encoding='utf-8', force=True)
+logger = logging.getLogger(__name__)
 
 DB_CONFIG = {
     "driver": "{ODBC Driver 17 for SQL Server}",
@@ -17,6 +21,7 @@ def get_connection():
             f"PWD={DB_CONFIG['pwd']};Encrypt=yes;TrustServerCertificate=yes;"
         )
     except Exception as e:
+        logger.error(f"Ошибка подключения к базе данных: {e}")
         return None
 
 def _exec(query, params=(), fetch=True, commit=False):
@@ -35,8 +40,9 @@ def _exec(query, params=(), fetch=True, commit=False):
             if commit:
                 conn.commit()
             return None if fetch else True
-    except Exception:
-        return  None if fetch else None
+    except Exception as e:
+        logger.error(f"Ошибка выполнения запроса: {query} - {e}")
+        return None if fetch else False
     finally:
         conn.close()
 
@@ -125,23 +131,41 @@ def update_product_full(pid, name, price, desc=None, img=None, brand_id=None, co
         return False
 
 def get_all_orders():
+    # ИСПРАВЛЕНО: o.user_if заменено на o.user_id
     return _exec(
-        "SELECT o.id, o.user_id, o.order_date, o.status, o.total, u.username "
-        "FROM orders o LEFT JOIN users u ON o.user_if = u.id ORDER BY o.order_date DESC",
+        """
+        SELECT o.id, o.user_id, o.order_date, o.status, o.total, u.username 
+        FROM orders o 
+        LEFT JOIN users u ON o.user_id = u.id 
+        ORDER BY o.order_date DESC
+        """,
         fetch=False
     ) or []
 
 def get_order_items(order_id):
+    # ИСПРАВЛЕНО: удалена лишняя запятая перед FROM (oi.price, FROM -> oi.price FROM)
     return _exec(
-        "SELECT p.name, oi.quantity, oi.price, FROM order_items oi "
-        "JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?",
+        """
+        SELECT p.name, oi.quantity, oi.price, oi.size 
+        FROM order_items oi 
+        JOIN products p ON oi.product_id = p.id 
+        WHERE oi.order_id = ?
+        """,
         (order_id,),
         fetch=False
     ) or []
 
 def delete_order(oid):
-    _exec("DELETE FROM order_items WHERE order_id = ?", (oid,), commit=True)
-    _exec("DELETE FROM orders WHERE id=?", (oid,), commit=True)
+    try:
+        # Сначала удаляем связанные позиции из order_items (каскадное удаление вручную)
+        _exec("DELETE FROM order_items WHERE order_id = ?", (oid,), commit=True)
+        # Затем удаляем сам заказ из orders
+        _exec("DELETE FROM orders WHERE id = ?", (oid,), commit=True)
+        return True
+    except Exception as e:
+        logger.error(f"Ошибка при удалении заказа #{oid}: {e}")
+        return False
+
 
 def create_order(user_id, items):
     if not items:
@@ -149,24 +173,43 @@ def create_order(user_id, items):
     try:
         conn = get_connection()
         with conn.cursor() as cursor:
+            # ДОБАВЛЕН ПРЕФИКС N перед 'Новый', чтобы исключить появление знаков вопроса ?????
             cursor.execute(
-                "INSERT INTO orders (user_id, order_date, status, total) VALUES(?, GETDATE(), 'Новый', 0)",
+                """
+                INSERT INTO orders (user_id, order_date, status, total) 
+                OUTPUT INSERTED.id
+                VALUES(?, GETDATE(), N'Новый', 0)
+                """,
                 (user_id,)
             )
-            oid = cursor.execute("SELECT SCOPE_IDENTITY()").fetchone()[0]
+
+            oid = cursor.fetchone()[0]
+
+            if not oid:
+                return False
+
             total = 0
+
             for item in items:
                 p = get_product_by_id(item['product_id'])
                 if p:
+                    item_size = item.get('size', None)
                     cursor.execute(
-                        "INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)",
-                        (oid, item['product_id'], item['quantity'], p['price'])
+                        """
+                        INSERT INTO order_items (order_id, product_id, quantity, price, size) 
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (oid, item['product_id'], item['quantity'], p['price'], item_size)
                     )
                     total += p['price'] * item['quantity']
+
+            # Обновляем итоговую сумму заказа
             cursor.execute("UPDATE orders SET total = ? WHERE id = ?", (total, oid))
             conn.commit()
+
         return True
-    except Exception:
+    except Exception as e:
+        print(f"Ошибка при сохранении заказа: {e}")
         return False
 
 def get_user_by_username(username):

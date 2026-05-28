@@ -35,16 +35,19 @@ class LoginApp(QWidget):
         self.register_btn.clicked.connect(self.open_register_window)
 
     def login(self):
-        email = self.email.text().strip().lower()
-        password = self.password.text()
-        ok, result = db.login_user(email, password)
-        if ok and isinstance(result, dict):
-            from main_window import MainApp
-            self.main_window = MainApp(result['username'], result['role_name'])
-            self.main_window.show()
-            QTimer.singleShot(50, self.hide)
-        else:
-            QMessageBox.critical(self, "Ошибка", result)
+        try:
+            email = self.email.text().strip().lower()
+            password = self.password.text()
+            ok, result = db.login_user(email, password)
+            if ok and isinstance(result, dict):
+                from main_window import MainApp
+                self.main_window = MainApp(result['username'], result['role_name'])
+                self.main_window.show()
+                QTimer.singleShot(50, self.hide)
+            else:
+                QMessageBox.critical(self, "Ошибка", result)
+        except Exception as e:
+            print(str(e))
 
     def open_register_window(self):
         from register import RegisterApp

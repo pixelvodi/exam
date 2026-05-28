@@ -50,6 +50,7 @@ def _create_product_card(product, role_name, edit_callback=None, delete_callback
     img_label.setStyleSheet("background-color: #f0f0f0;")
 
     image_path = product.get("image_url")
+
     if image_path:
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
         full_path = os.path.join(BASE_DIR, image_path)
@@ -66,7 +67,7 @@ def _create_product_card(product, role_name, edit_callback=None, delete_callback
         img_label.setText("Фото")
 
     photo_layout.addWidget(img_label)
-    main_layout.addWidget(photo_layout)
+    main_layout.addWidget(photo_frame)
 
     info_layout = QVBoxLayout()
     info_layout.setSpacing(5)
@@ -168,7 +169,10 @@ def _create_product_card(product, role_name, edit_callback=None, delete_callback
         delete_btn.setObjectName("delete")
         delete_btn.setStyleSheet("QPushButton { background-color: #aa3333; color: #ffffff; border-radius: 4px; } QPushButton:hover { background-color: #cc4444; }")
         if delete_callback:
-            delete_btn.clicked.connect(partial(delete_callback, product.get("id")))
+            try:
+                delete_btn.clicked.connect(partial(delete_callback, product.get("id")))
+            except Exception as e:
+                print(str(e))
 
         btn_layout.addWidget(edit_btn)
         btn_layout.addWidget(delete_btn)
